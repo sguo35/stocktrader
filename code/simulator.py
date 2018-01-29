@@ -6,13 +6,13 @@ import time
 
   
 def simulate(timeseries):
-    num_trials = 30
+    num_trials = 35
     # simulate num_trials of 2 weeks returns
     i = 0
     trials = []
     while i < num_trials:
         start = time.time()
-        num_timesteps = 850
+        num_timesteps = 800
         j = 0
 
         stock_amt = 1000
@@ -32,28 +32,48 @@ def simulate(timeseries):
             maxIndex = np.argmax(result)
             actions_x.append(reshaped)
             actions_y.append(maxIndex)
+            #print("MONEY: " + str(money))
+            #print("STOCK: " + str(stock_amt))
+            #print("PRICE: " + str(timeseries[64+j-1][3]))
+            
             if maxIndex == 0:
                 # buy
-                stock_amt += 1000 / timeseries[64+j-1][3]
-                money -= 1020
+                if money < 1020:
+                    fee = 20
+                    if money < 20:
+                        fee = 0
+                    stock_amt += (money - fee) / timeseries[64+j-1][3]
+                    money = 0
+                else:
+                    stock_amt += 1000 / timeseries[64+j-1][3]
+                    money -= 1020
             if maxIndex == 1:
                 # sell
-                stock_amt -= 1000 / timeseries[64+j-1][3]
-                money += 980
+                if stock_amt < 1000:
+                    money += (timeseries[64+j-1][3] * stock_amt) - 20
+                    stock_amt = 0
+                else:
+                    stock_amt -= 1000 / timeseries[64+j-1][3]
+                    money += 980
             # next timestep
             j += 1
             if j == num_timesteps - 1:
                 # calculate returns
                 total = (stock_amt * timeseries[64+j-1][3]) + money
-                returns = total / ((stock_amt * timeseries[63][3]) + 10000)
-        trials.append([actions_x, actions_y, returns])
+                #print("TOTAL: " + str(total))
+                #print("VAL: " + str(((stock_amt * timeseries[63][3]) + 10000)))
+                returns = total / ((1000 * timeseries[63][3]) + 10000)
+        for idx, val in enumerate(actions_x):
+            trials.append([actions_x[idx], actions_y[idx], returns])
         print("Returns: " + str(returns))
         print("Trial # " + str(i) + " / " + str(num_trials))
         end = time.time()
         print(str(end - start) + " seconds / trial")
         i += 1
-    indices = np.argpartition(trials, int(num_trials * 0.2))
-    return trials[indices]
+    trl = np.array(trials)
+    trl = trl[trl[:,2].argsort()]
+    # take every 3rd move
+    return trl[int(-1 * num_trials * 0.3 * num_timesteps)::3]
 
 
 import os
@@ -74,5 +94,19 @@ for file in files:
         #print(min_max_scaler)
         min_max_scaler.fit(new_data)
         top_simulations = simulate(new_data)
-        model.fit(top_simulations[:,0], top_simulations[:,1], epochs=1, batch_size=128, verbose=1)
+        train_x = []
+        train_y = []
+        from sklearn.preprocessing import OneHotEncoder
+        enc = OneHotEncoder(sparse=False)
+        for simulation in top_simulations:
+            train_x.append(simulation[0])
+            train_y.append(simulation[1])
+        train_x = np.reshape(train_x, (-1, 64, 5))
+        train_y = np.reshape(train_y, (-1, 1))
+        train_y = enc.fit_transform(train_y)
+        try:
+            model.fit(train_x, train_y, epochs=1, batch_size=128, verbose=1)
+        except:
+            print("Error in training occurred.")
+        model.save('./model.h5')
 
