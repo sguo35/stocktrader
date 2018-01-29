@@ -47,10 +47,9 @@ if __name__ == '__main__':
     output = make_residual_lstm_layers(input, rnn_width=128, rnn_depth=4, rnn_dropout=0.2)
     output = Dropout(0.2)(output)
     outputSoftmax = Dense(3, activation='softmax')(output)
-    outputTanh = Dense(1, activation='tanh')(output)
-    model = Model(inputs=input, outputs=[outputSoftmax, outputTanh])
+    outputTanh = Dense(5, activation='tanh')(output)
+    model = Model(inputs=input, outputs=[outputSoftmax])
     model.summary()
-    model.compile(optimizer='adam', loss=['categorical_crossentropy', 'mse'], metrics=['acc'])
-    model.fit(x_train, y_train, epochs=1, batch_size=128, validation_data=(x_valid, y_valid), verbose=1)
+    model.compile(optimizer='adam', loss=['categorical_crossentropy'], metrics=['acc'])
     model.save('./model.h5')
 
